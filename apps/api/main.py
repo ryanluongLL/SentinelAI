@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from core.config import settings
+from websocket.stream import stream_events
 
 app = FastAPI(title="SentinelAI API", version="1.0.0")
 
@@ -14,3 +16,7 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "SentinelAI API"}
+
+@app.websocket("/ws/events")
+async def websocket_events(websocket: WebSocket):
+    await stream_events(websocket)
