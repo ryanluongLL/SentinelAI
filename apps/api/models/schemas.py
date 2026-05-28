@@ -24,6 +24,21 @@ class NetworkEventResponse(NetworkEventCreate):
         from_attributes = True
 
 class ThreatResponse(BaseModel):
+    id: UUID
+    event_id: Optional[UUID]
+    detected_at: datetime
+    threat_type: str
+    severity: str
+    confidence_score: float
+    source_ip: str
+    description: str
+    is_resolved: bool
+    metadata: dict = {}
+
+    class Config:
+        from_attributes = True
+
+class ThreatResolveRequest(BaseModel):
     is_resolved: bool
 
 class AlertResponse(BaseModel):
