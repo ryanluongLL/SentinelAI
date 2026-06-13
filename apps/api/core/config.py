@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     APP_NAME: str = "SentinelAI"
     DEBUG: bool = True
+    ANTHROPIC_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
