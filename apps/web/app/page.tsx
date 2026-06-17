@@ -1,65 +1,298 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState, useCallback } from 'react';
+import {
+  ShieldAlert,
+  AlertTriangle,
+  Activity,
+  CheckCircle,
+  Loader2
+} from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid
+} from 'recharts';
+import StatCard from '@/components/dashboard/StatCard';
+import AnimatedList from '@/components/bits/AnimatedList';
+import api from '@/lib/api';
+import styles from './page.module.css';
+
+interface Threat {
+  id: string;
+  threat_type: string;
+  severity: string;
+  source_ip: string;
+  detected_at: string;
+  confidence_score: number;
+}
+
+interface Stats {
+  total_events: number;
+  events_last_hour: number;
+}
+
+interface ThreatSummary {
+  total: number;
+  critical: number;
+  high: number;
+  unresolved: number;
+}
+
+interface ChartPoint {
+  time: string;
+  events: number;
+  threats: number;
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+}
+
+export default function DashboardPage() {
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [summary, setSummary] = useState<ThreatSummary | null>(null);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [training, setTraining] = useState(false);
+  const [wsEvents, setWsEvents] = useState(0);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [threatsRes, statsRes, summaryRes] = await Promise.all([
+        api.get('/threats/?limit=10&is_resolved=false'),
+        api.get('/events/stats'),
+        api.get('/threats/summary'),
+      ]);
+      setThreats(threatsRes.data);
+      setStats(statsRes.data);
+      setSummary(summaryRes.data);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  useEffect(() => {
+  const ws = new WebSocket('ws://localhost:8000/ws/events');
+
+  ws.onopen = () => console.log('WebSocket connected');
+
+  ws.onclose = (e) => console.log('WebSocket closed', e.code, e.reason);
+
+  ws.onerror = (e) => console.error('WebSocket error', e);
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+      if (msg.type === 'network_event') {
+        setWsEvents((n) => n + 1);
+        const now = new Date();
+        const label = now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        setChartData((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.time === label) {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              ...last,
+              events: last.events + 1,
+              threats: last.threats + (msg.data.is_anomaly ? 1 : 0),
+            };
+            return updated;
+          }
+          return [
+            ...prev,
+            {
+              time: label,
+              events: 1,
+              threats: msg.data.is_anomaly ? 1 : 0,
+            },
+          ].slice(-20);
+        });
+      }
+    };
+
+    return () => ws.close();
+  }, []);
+
+  const handleTrain = async () => {
+    setTraining(true);
+    try {
+      await api.post('/ai/train');
+      await fetchData();
+    } finally {
+      setTraining(false);
+    }
+  };
+
+  const severityClass = (s: string) => {
+    const map: Record<string, string> = {
+      critical: styles.critical,
+      high: styles.high,
+      medium: styles.medium,
+      low: styles.low,
+    };
+    return map[s] ?? styles.low;
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className={styles.page}>
+      <div className={styles.statsGrid}>
+        <StatCard
+          label="Total Threats"
+          value={summary?.total ?? 0}
+          icon={<ShieldAlert size={18} />}
+          accent="red"
+          delta={summary?.critical ?? 0}
+          deltaLabel="critical"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+        <StatCard
+          label="Unresolved"
+          value={summary?.unresolved ?? 0}
+          icon={<AlertTriangle size={18} />}
+          accent="amber"
+          deltaLabel="need attention"
+        />
+        <StatCard
+          label="Events (1h)"
+          value={stats?.events_last_hour ?? 0}
+          icon={<Activity size={18} />}
+          accent="blue"
+          delta={wsEvents}
+          deltaLabel="live this session"
+        />
+        <StatCard
+          label="Total Events"
+          value={stats?.total_events ?? 0}
+          icon={<CheckCircle size={18} />}
+          accent="green"
+          deltaLabel="analyzed"
+        />
+      </div>
+
+      <div className={styles.bentoGrid}>
+        <div className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <span className={styles.panelTitle}>Live Event Stream</span>
+            <span className={styles.panelBadge}>Live</span>
+          </div>
+          <div className={styles.chartWrapper}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="eventsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#457B9D" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#457B9D" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="threatsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#E63946" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#E63946" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#E5E5E3" strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 11, fill: '#9B9B9B', fontFamily: 'DM Sans' }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#9B9B9B', fontFamily: 'DM Sans' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={24}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: '#fff',
+                    border: '1px solid #E5E5E3',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontFamily: 'DM Sans',
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.06)'
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="events"
+                  stroke="#457B9D"
+                  strokeWidth={2}
+                  fill="url(#eventsGrad)"
+                  dot={false}
+                  name="Events"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="threats"
+                  stroke="#E63946"
+                  strokeWidth={2}
+                  fill="url(#threatsGrad)"
+                  dot={false}
+                  name="Threats"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <span className={styles.panelTitle}>Recent Threats</span>
+            <button
+              className={styles.trainButton}
+              onClick={handleTrain}
+              disabled={training}
+            >
+              {training
+                ? <><Loader2 size={14} className="spin" /> Training...</>
+                : 'Train Model'
+              }
+            </button>
+          </div>
+          <div className={styles.panelBody}>
+            {threats.length === 0 ? (
+              <div className={styles.emptyState}>
+                No threats detected yet. Train the model to begin analysis.
+              </div>
+            ) : (
+              <AnimatedList delay={50}>
+                {threats.map((t) => (
+                  <div key={t.id} className={styles.threatItem}>
+                    <span className={`${styles.severityBadge} ${severityClass(t.severity)}`}>
+                      {t.severity}
+                    </span>
+                    <div className={styles.threatInfo}>
+                      <div className={styles.threatType}>{t.threat_type.replace('_', ' ')}</div>
+                      <div className={styles.threatIp}>{t.source_ip}</div>
+                    </div>
+                    <span className={styles.threatTime}>
+                      {formatTimeAgo(t.detected_at)}
+                    </span>
+                  </div>
+                ))}
+              </AnimatedList>
+            )}
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

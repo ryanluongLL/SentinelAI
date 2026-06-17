@@ -15,6 +15,8 @@ THREAT_DESCRIPTIONS = {
 
 async def process_event(event: dict, db: AsyncSession) -> dict:
     result = detector.predict(event)
+    print(f"DEBUG predict: is_anomaly={result['is_anomaly']} severity={result['severity']} confidence={result['confidence_score']}")
+
 
     if not result["is_anomaly"]:
         return{
