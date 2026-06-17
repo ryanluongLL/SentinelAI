@@ -1,0 +1,80 @@
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  cursor: default;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.iconWrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.value {
+  font-family: var(--font-heading);
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.delta {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.deltaUp {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.deltaDown {
+  background-color: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.footerLabel {
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+}
+
+.accentRed { background-color: var(--color-primary-light); }
+.accentGreen { background-color: var(--color-success-light); }
+.accentAmber { background-color: var(--color-warning-light); }
+.accentBlue { background-color: var(--color-info-light); }
+
+.accentRedIcon { color: var(--color-primary); }
+.accentGreenIcon { color: var(--color-success); }
+.accentAmberIcon { color: var(--color-warning); }
+.accentBlueIcon { color: var(--color-info); }
